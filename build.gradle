@@ -2,8 +2,8 @@ plugins {
     id 'java'
 }
 
-group 'org.example'
-version '1.0-SNAPSHOT'
+group 'org.ksi'
+version '1.0.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -12,6 +12,18 @@ repositories {
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+
+    // pcap4j
+    // https://mvnrepository.com/artifact/org.pcap4j/pcap4j-core
+    implementation 'org.pcap4j:pcap4j-core:1.8.2'
+    // https://mvnrepository.com/artifact/org.pcap4j/pcap4j-packetfactory-static
+    implementation 'org.pcap4j:pcap4j-packetfactory-static:1.8.2'
+
+    // log
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
+    implementation 'org.slf4j:slf4j-simple:1.7.36'
 }
 
 test {
