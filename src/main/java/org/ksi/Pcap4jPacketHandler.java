@@ -1,10 +1,10 @@
 package org.ksi;
 
-
 import org.pcap4j.core.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -12,9 +12,10 @@ import java.util.stream.Collectors;
 public class Pcap4jPacketHandler implements PacketHandlerAdapter {
     private static final int TIME_OUT_MILLIS = 10;
     private static final int SNAP_LEN = 65536;
-    private static final int INFINITE_LOOP = 1;
+    private static final int INFINITE_LOOP = -1;
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
     private final List<PcapNetworkInterface> pcapNetworkInterfaces;
+    private final PacketParser packetParser = new PacketParser();
     private PcapHandle pcapHandle;
 
     public Pcap4jPacketHandler() {
@@ -33,15 +34,16 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
     }
 
     @Override
-    public void capture(NetworkTraffic networkTraffic, int networkInterfaceSelectIndex) {
+    public void capture(NetworkTraffic networkTraffic, int selectIndex) {
         executorService.execute(() -> {
-            createPacketHandler(networkInterfaceSelectIndex);
+            PcapNetworkInterface pcapNetworkInterface = pcapNetworkInterfaces.get(selectIndex);
 
-            PacketListener packetListener = createPacketListener(networkTraffic);
+            createPacketHandler(pcapNetworkInterface);
+
+            PacketListener packetListener = createPacketListener(pcapNetworkInterface, networkTraffic);
 
             doCapture(packetListener);
         });
-
     }
 
     private void doCapture(PacketListener packetListener) {
@@ -56,16 +58,16 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         }
     }
 
-    private PacketListener createPacketListener(NetworkTraffic networkTraffic) {
+    private PacketListener createPacketListener(PcapNetworkInterface pcapNetworkInterface, NetworkTraffic networkTraffic) {
+        packetParser.createNetworkInterfaceAddresses(pcapNetworkInterface);
+
         PacketListener packetListener = packet -> {
         };
 
         return packetListener;
     }
 
-    private void createPacketHandler(int selectIndex) {
-        PcapNetworkInterface pcapNetworkInterface = pcapNetworkInterfaces.get(selectIndex);
-
+    private void createPacketHandler(PcapNetworkInterface pcapNetworkInterface) {
         try {
             pcapHandle = pcapNetworkInterface.openLive(SNAP_LEN, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, TIME_OUT_MILLIS);
         } catch (PcapNativeException e) {
@@ -84,6 +86,17 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         pcapHandle.close();
 
         executorService.shutdown();
+    }
+
+    private final class PacketParser {
+        private Set<String> networkInterfaceAddresses;
+
+        private void createNetworkInterfaceAddresses(PcapNetworkInterface pcapNetworkInterface) {
+            List<PcapAddress> pcapAddresses = pcapNetworkInterface.getAddresses();
+            networkInterfaceAddresses = pcapAddresses.stream()
+                    .map(pcapAddress -> pcapAddress.getAddress().getHostAddress())
+                    .collect(Collectors.toUnmodifiableSet());
+        }
     }
 
 }
