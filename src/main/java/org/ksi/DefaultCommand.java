@@ -12,4 +12,9 @@ public class DefaultCommand implements OSCommand {
     public Optional<String> findProcessId(String socketIdentifier) {
         return Optional.of(socketIdentifier);
     }
+
+    @Override
+    public Optional<String> findProcessName(String processId) {
+        return Optional.of(processId);
+    }
 }

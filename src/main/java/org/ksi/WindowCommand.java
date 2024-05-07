@@ -20,16 +20,42 @@ public class WindowCommand implements OSCommand {
             String line = reader.readLine();
 
             if (line == null) {
-                return Optional.empty();
+                return Optional.of(socketIdentifier);
             }
 
-            String pid = extractProcessId(line);
-            return Optional.of(pid);
+            return Optional.of(extractProcessId(line));
+
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<String> findProcessName(String processId) {
+        ProcessBuilder builder = new ProcessBuilder("tasklist", "/FI", "PID eq " + processId, "/FO", "CSV", "/NH");
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(builder.start().getInputStream()))) {
+            String line = reader.readLine();
+
+            if (line == null) {
+                return Optional.of(processId);
+            }
+
+            return Optional.of(extractProcessName(line));
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return Optional.of(processId);
+    }
+
+    private String extractProcessName(String line) {
+        String[] tokens = line.split(",");
+
+        return tokens[0].replaceAll("^\"|\"$", "");
     }
 
     private String extractProcessId(String line) {
