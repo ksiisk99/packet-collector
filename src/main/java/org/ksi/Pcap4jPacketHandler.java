@@ -1,6 +1,9 @@
 package org.ksi;
 
 import org.pcap4j.core.*;
+import org.pcap4j.packet.IpV4Packet;
+import org.pcap4j.packet.Packet;
+import org.pcap4j.packet.TcpPacket;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +66,6 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
         PacketListener packetListener = packet -> {
         };
-
         return packetListener;
     }
 
@@ -90,6 +92,26 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
     private final class PacketParser {
         private Set<String> networkInterfaceAddresses;
+
+        private String extractSocketIdentifier(Packet packet) {
+            String ip = extractIP(packet);
+            String port = extractPort(packet);
+
+            return ip + ":" + port;
+        }
+
+        private String extractPort(Packet packet) {
+            TcpPacket tcpPacket = packet.get(TcpPacket.class);
+
+            return tcpPacket.getHeader().getSrcPort().toString().split("")[0];
+        }
+
+        private String extractIP(Packet packet) {
+            IpV4Packet ipV4Packet = packet.get(IpV4Packet.class);
+            IpV4Packet.IpV4Header ipV4Header = ipV4Packet.getHeader();
+
+            return ipV4Header.getSrcAddr().getHostAddress().toString();
+        }
 
         private void createNetworkInterfaceAddresses(PcapNetworkInterface pcapNetworkInterface) {
             List<PcapAddress> pcapAddresses = pcapNetworkInterface.getAddresses();
