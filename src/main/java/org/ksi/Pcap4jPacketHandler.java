@@ -4,6 +4,7 @@ import org.pcap4j.core.*;
 import org.pcap4j.packet.IpV4Packet;
 import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
+import org.pcap4j.packet.UdpPacket;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,12 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         packetParser.createNetworkInterfaceAddresses(pcapNetworkInterface);
 
         PacketListener packetListener = packet -> {
+            if (packet.get(IpV4Packet.class) != null) {
+                String socket = packetParser.extractSocketIdentifier(packet);
+                System.out.println(socket);
+            }
         };
+
         return packetListener;
     }
 
@@ -102,8 +108,12 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
         private String extractPort(Packet packet) {
             TcpPacket tcpPacket = packet.get(TcpPacket.class);
+            if (tcpPacket != null) {
+                return tcpPacket.getHeader().getSrcPort().toString().split("")[0];
+            }
 
-            return tcpPacket.getHeader().getSrcPort().toString().split("")[0];
+            UdpPacket udpPacket = packet.get(UdpPacket.class);
+            return udpPacket.getHeader().getSrcPort().toString().split("")[0];
         }
 
         private String extractIP(Packet packet) {
