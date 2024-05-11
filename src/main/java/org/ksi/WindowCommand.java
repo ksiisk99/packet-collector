@@ -3,7 +3,6 @@ package org.ksi;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Optional;
 
 public class WindowCommand implements OSCommand {
 
@@ -12,44 +11,45 @@ public class WindowCommand implements OSCommand {
         return osName.contains("Windows");
     }
 
-    @Override
-    public Optional<String> findProcessId(String socketIdentifier) {
+    private String findProcessId(String socketIdentifier) {
         ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", "netstat -ano | findstr " + socketIdentifier);
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(builder.start().getInputStream()))) {
             String line = reader.readLine();
 
             if (line == null) {
-                return Optional.of(socketIdentifier);
+                return socketIdentifier;
             }
 
-            return Optional.of(extractProcessId(line));
+            return extractProcessId(line);
 
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return Optional.empty();
+        return socketIdentifier;
     }
 
     @Override
-    public Optional<String> findProcessName(String processId) {
+    public String findProcessName(String socketIdentifier) {
+        String processId = findProcessId(socketIdentifier);
+
         ProcessBuilder builder = new ProcessBuilder("tasklist", "/FI", "PID eq " + processId, "/FO", "CSV", "/NH");
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(builder.start().getInputStream()))) {
             String line = reader.readLine();
 
             if (line == null) {
-                return Optional.of(processId);
+                return socketIdentifier;
             }
 
-            return Optional.of(extractProcessName(line));
+            return extractProcessName(line);
 
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return Optional.of(processId);
+        return socketIdentifier;
     }
 
     private String extractProcessName(String line) {
