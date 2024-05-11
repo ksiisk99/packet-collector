@@ -38,13 +38,13 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
     }
 
     @Override
-    public void capture(NetworkTraffic networkTraffic, int selectIndex) {
+    public void capture(NetworkTraffic networkTraffic, int selectIndex, OSCommand osCommand) {
         executorService.execute(() -> {
             PcapNetworkInterface pcapNetworkInterface = pcapNetworkInterfaces.get(selectIndex);
 
             createPacketHandler(pcapNetworkInterface);
 
-            PacketListener packetListener = createPacketListener(pcapNetworkInterface, networkTraffic);
+            PacketListener packetListener = createPacketListener(pcapNetworkInterface, networkTraffic, osCommand);
 
             doCapture(packetListener);
         });
@@ -62,17 +62,28 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         }
     }
 
-    private PacketListener createPacketListener(PcapNetworkInterface pcapNetworkInterface, NetworkTraffic networkTraffic) {
+    private PacketListener createPacketListener(PcapNetworkInterface pcapNetworkInterface, NetworkTraffic networkTraffic, OSCommand osCommand) {
         packetParser.createNetworkInterfaceAddresses(pcapNetworkInterface);
 
         PacketListener packetListener = packet -> {
-            if (packet.get(IpV4Packet.class) != null) {
-                String socket = packetParser.extractSocketIdentifier(packet);
-                System.out.println(socket);
+            if (isIPPacket(packet)) {
+                String processName = findProcessName(packet, osCommand);
+
+                networkTraffic.addResponseByte(processName, packetParser.extractBytes(packet));
             }
         };
 
         return packetListener;
+    }
+
+    private String findProcessName(Packet packet, OSCommand osCommand) {
+        String socketIdentifier = packetParser.extractSocketIdentifier(packet);
+
+        return osCommand.findProcessName(socketIdentifier);
+    }
+
+    private boolean isIPPacket(Packet packet) {
+        return packet.get(IpV4Packet.class) != null;
     }
 
     private void createPacketHandler(PcapNetworkInterface pcapNetworkInterface) {
@@ -109,11 +120,11 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         private String extractPort(Packet packet) {
             TcpPacket tcpPacket = packet.get(TcpPacket.class);
             if (tcpPacket != null) {
-                return tcpPacket.getHeader().getSrcPort().toString().split("")[0];
+                return tcpPacket.getHeader().getSrcPort().toString().split(" ")[0];
             }
 
             UdpPacket udpPacket = packet.get(UdpPacket.class);
-            return udpPacket.getHeader().getSrcPort().toString().split("")[0];
+            return udpPacket.getHeader().getSrcPort().toString().split(" ")[0];
         }
 
         private String extractIP(Packet packet) {
@@ -128,6 +139,10 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             networkInterfaceAddresses = pcapAddresses.stream()
                     .map(pcapAddress -> pcapAddress.getAddress().getHostAddress())
                     .collect(Collectors.toUnmodifiableSet());
+        }
+
+        public long extractBytes(Packet packet) {
+            return packet.get(IpV4Packet.class).getHeader().getTotalLengthAsInt();
         }
     }
 
