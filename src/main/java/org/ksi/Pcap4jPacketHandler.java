@@ -51,6 +51,10 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
     }
 
     private void doCapture(PacketListener packetListener) {
+        if (!pcapHandle.isOpen()) {
+            return;
+        }
+
         try {
             pcapHandle.loop(INFINITE_LOOP, packetListener);
         } catch (PcapNativeException e) {
@@ -63,7 +67,7 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
     }
 
     private PacketListener createPacketListener(PcapNetworkInterface pcapNetworkInterface, NetworkTraffic networkTraffic, OSCommand osCommand) {
-        packetParser.createNetworkInterfaceAddresses(pcapNetworkInterface);
+        packetParser.createNetworkBands(pcapNetworkInterface);
 
         PacketListener packetListener = packet -> {
             if (isIPPacket(packet)) {
@@ -96,6 +100,8 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
     @Override
     public void close() {
+        executorService.shutdown();
+
         try {
             pcapHandle.breakLoop();
         } catch (NotOpenException e) {
@@ -103,12 +109,10 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         }
 
         pcapHandle.close();
-
-        executorService.shutdown();
     }
 
     private final class PacketParser {
-        private Set<String> networkInterfaceAddresses;
+        private Set<String> networkBands;
 
         private String extractSocketIdentifier(Packet packet) {
             String ip = extractIP(packet);
@@ -134,11 +138,38 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             return ipV4Header.getSrcAddr().getHostAddress().toString();
         }
 
-        private void createNetworkInterfaceAddresses(PcapNetworkInterface pcapNetworkInterface) {
+        private void createNetworkBands(PcapNetworkInterface pcapNetworkInterface) {
             List<PcapAddress> pcapAddresses = pcapNetworkInterface.getAddresses();
-            networkInterfaceAddresses = pcapAddresses.stream()
-                    .map(pcapAddress -> pcapAddress.getAddress().getHostAddress())
+            networkBands = pcapAddresses.stream()
+                    .filter(this::hasNetMask)
+                    .map(this::calculateNetworkBand)
                     .collect(Collectors.toUnmodifiableSet());
+        }
+
+        private boolean hasNetMask(PcapAddress pcapAddress) {
+            if (pcapAddress.getNetmask() == null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        private String calculateNetworkBand(PcapAddress pcapAddress) {
+            String[] netMasks = pcapAddress.getNetmask().getHostName().split("\\.");
+            String[] addresses = pcapAddress.getAddress().getHostAddress().split("\\.");
+
+            StringBuilder networkBand = new StringBuilder();
+            for (int i = 0; i < 4; i++) {
+                networkBand.append(Integer.parseInt(addresses[i]) & Integer.parseInt(netMasks[i]));
+
+                if (i == 3) {
+                    break;
+                }
+
+                networkBand.append(".");
+            }
+
+            return networkBand.toString();
         }
 
         public long extractBytes(Packet packet) {
