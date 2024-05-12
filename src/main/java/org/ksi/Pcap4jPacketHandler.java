@@ -7,6 +7,7 @@ import org.pcap4j.packet.TcpPacket;
 import org.pcap4j.packet.UdpPacket;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -71,19 +72,24 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
         PacketListener packetListener = packet -> {
             if (isIPPacket(packet)) {
-                String processName = findProcessName(packet, osCommand);
-
-                networkTraffic.addResponseByte(processName, packetParser.extractBytes(packet));
+                calculateResponseNetworkBytes(networkTraffic, osCommand, packet);
             }
         };
 
         return packetListener;
     }
 
-    private String findProcessName(Packet packet, OSCommand osCommand) {
-        String socketIdentifier = packetParser.extractSocketIdentifier(packet);
+    private void calculateResponseNetworkBytes(NetworkTraffic networkTraffic, OSCommand osCommand, Packet packet) {
+        String ip = packetParser.extractSrcIP(packet);
+        if (packetParser.isInLocalNetworkBand(ip)) {
+            return;
+        }
 
-        return osCommand.findProcessName(socketIdentifier);
+        String port = packetParser.extractSrcPort(packet);
+        String socketIdentifier = ip + ":" + port;
+        String processName = osCommand.findProcessName(socketIdentifier);
+
+        networkTraffic.addResponseByte(processName, packetParser.extractBytes(packet));
     }
 
     private boolean isIPPacket(Packet packet) {
@@ -113,15 +119,9 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
     private final class PacketParser {
         private Set<String> networkBands;
+        private List<int[]> netMasks;
 
-        private String extractSocketIdentifier(Packet packet) {
-            String ip = extractIP(packet);
-            String port = extractPort(packet);
-
-            return ip + ":" + port;
-        }
-
-        private String extractPort(Packet packet) {
+        private String extractSrcPort(Packet packet) {
             TcpPacket tcpPacket = packet.get(TcpPacket.class);
             if (tcpPacket != null) {
                 return tcpPacket.getHeader().getSrcPort().toString().split(" ")[0];
@@ -131,7 +131,7 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             return udpPacket.getHeader().getSrcPort().toString().split(" ")[0];
         }
 
-        private String extractIP(Packet packet) {
+        private String extractSrcIP(Packet packet) {
             IpV4Packet ipV4Packet = packet.get(IpV4Packet.class);
             IpV4Packet.IpV4Header ipV4Header = ipV4Packet.getHeader();
 
@@ -140,9 +140,12 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
 
         private void createNetworkBands(PcapNetworkInterface pcapNetworkInterface) {
             List<PcapAddress> pcapAddresses = pcapNetworkInterface.getAddresses();
+
+            netMasks = new ArrayList<>();
+
             networkBands = pcapAddresses.stream()
                     .filter(this::hasNetMask)
-                    .map(this::calculateNetworkBand)
+                    .map(this::convertNetworkBand)
                     .collect(Collectors.toUnmodifiableSet());
         }
 
@@ -154,13 +157,44 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             return true;
         }
 
-        private String calculateNetworkBand(PcapAddress pcapAddress) {
-            String[] netMasks = pcapAddress.getNetmask().getHostName().split("\\.");
-            String[] addresses = pcapAddress.getAddress().getHostAddress().split("\\.");
+        private String convertNetworkBand(PcapAddress pcapAddress) {
+            int[] netMask = Arrays.stream(pcapAddress.getNetmask().getHostName().split("\\."))
+                    .mapToInt(Integer::parseInt)
+                    .toArray();
+            netMasks.add(netMask);
 
+            int[] addresses = Arrays.stream(pcapAddress.getAddress().getHostAddress().split("\\."))
+                    .mapToInt(Integer::parseInt)
+                    .toArray();
+
+            return calculateNetworkBand(addresses, netMask);
+        }
+
+        public long extractBytes(Packet packet) {
+            return packet.get(IpV4Packet.class).getHeader().getTotalLengthAsInt();
+        }
+
+        public boolean isInLocalNetworkBand(String ip) {
+            int[] octets = Arrays.stream(ip.split("\\."))
+                    .mapToInt(Integer::parseInt)
+                    .toArray();
+
+            for (int[] netMask : netMasks) {
+                String networkBand = calculateNetworkBand(octets, netMask);
+
+                if (networkBands.contains(networkBand)) {
+                    return true;
+                }
+            }
+
+            return false;
+
+        }
+
+        private String calculateNetworkBand(int[] octets, int[] netMask) {
             StringBuilder networkBand = new StringBuilder();
             for (int i = 0; i < 4; i++) {
-                networkBand.append(Integer.parseInt(addresses[i]) & Integer.parseInt(netMasks[i]));
+                networkBand.append(octets[i] & netMask[i]);
 
                 if (i == 3) {
                     break;
@@ -170,10 +204,6 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             }
 
             return networkBand.toString();
-        }
-
-        public long extractBytes(Packet packet) {
-            return packet.get(IpV4Packet.class).getHeader().getTotalLengthAsInt();
         }
     }
 
