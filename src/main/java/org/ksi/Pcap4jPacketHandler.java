@@ -89,6 +89,10 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         String socketIdentifier = ip + ":" + port;
         String processName = osCommand.findProcessName(socketIdentifier);
 
+        if (processName.equals(socketIdentifier)) {
+            return;
+        }
+
         networkTraffic.addResponseByte(processName, packetParser.extractBytes(packet));
     }
 
