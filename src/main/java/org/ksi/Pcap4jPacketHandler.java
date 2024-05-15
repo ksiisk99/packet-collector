@@ -73,6 +73,7 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         PacketListener packetListener = packet -> {
             if (isIPPacket(packet)) {
                 calculateResponseNetworkBytes(networkTraffic, osCommand, packet);
+                calculateRequestNetworkBytes(networkTraffic, osCommand, packet);
             }
         };
 
@@ -94,6 +95,23 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
         }
 
         networkTraffic.addResponseByte(processName, packetParser.extractBytes(packet));
+    }
+
+    private void calculateRequestNetworkBytes(NetworkTraffic networkTraffic, OSCommand osCommand, Packet packet) {
+        String ip = packetParser.extractDstIP(packet);
+        if (packetParser.isInLocalNetworkBand(ip)) {
+            return;
+        }
+
+        String port = packetParser.extractDstPort(packet);
+        String socketIdentifier = ip + ":" + port;
+        String processName = osCommand.findProcessName(socketIdentifier);
+
+        if (processName.equals(socketIdentifier)) {
+            return;
+        }
+
+        networkTraffic.addRequestByte(processName, packetParser.extractBytes(packet));
     }
 
     private boolean isIPPacket(Packet packet) {
@@ -208,6 +226,26 @@ public class Pcap4jPacketHandler implements PacketHandlerAdapter {
             }
 
             return networkBand.toString();
+        }
+
+        private String extractDstPort(Packet packet) {
+            TcpPacket tcpPacket = packet.get(TcpPacket.class);
+            if (tcpPacket != null) {
+                return tcpPacket.getHeader().getDstPort().toString().split(" ")[0];
+            }
+
+            UdpPacket udpPacket = packet.get(UdpPacket.class);
+            if (udpPacket == null) {
+                return "";
+            }
+            return udpPacket.getHeader().getDstPort().toString().split(" ")[0];
+        }
+
+        private String extractDstIP(Packet packet) {
+            IpV4Packet ipV4Packet = packet.get(IpV4Packet.class);
+            IpV4Packet.IpV4Header ipV4Header = ipV4Packet.getHeader();
+
+            return ipV4Header.getDstAddr().getHostAddress().toString();
         }
     }
 
