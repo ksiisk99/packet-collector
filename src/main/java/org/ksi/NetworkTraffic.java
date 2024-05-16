@@ -15,4 +15,11 @@ public final class NetworkTraffic {
         processRequestByte.merge(processName, requestByte, Long::sum);
     }
 
+    public Map<String, Long> getProcessResponseByte() {
+        return processResponseByte;
+    }
+
+    public Map<String, Long> getProcessRequestByte() {
+        return processRequestByte;
+    }
 }
