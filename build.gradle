@@ -6,6 +6,17 @@ plugins {
 group 'org.ksi'
 version '0.0.1'
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'org.ksi'
+            artifactId = 'packet-collector'
+            version = '0.0.1'
+            from components.java
+        }
+    }
+}
+
 repositories {
     mavenCentral()
 }
