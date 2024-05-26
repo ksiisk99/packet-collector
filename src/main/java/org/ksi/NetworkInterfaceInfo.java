@@ -1,6 +1,6 @@
 package org.ksi;
 
-final class NetworkInterfaceInfo {
+public final class NetworkInterfaceInfo {
     private String nifName;
     private String description;
     private String linkLayerAddress;
@@ -21,5 +21,21 @@ final class NetworkInterfaceInfo {
                 ", linkLayerAddress='" + linkLayerAddress + '\'' +
                 ", address='" + address + '\'' +
                 '}';
+    }
+
+    public String getNifName() {
+        return nifName;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getLinkLayerAddress() {
+        return linkLayerAddress;
+    }
+
+    public String getAddress() {
+        return address;
     }
 }
